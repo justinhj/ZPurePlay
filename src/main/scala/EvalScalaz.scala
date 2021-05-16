@@ -62,9 +62,6 @@ object EvalScalaz extends App {
   // Environment type (our symbol table for lookups)
   type Env[A] = Map[String, A]
 
-  // Probably don't need a program effect type, but it won't look like this anyway
-  //type EvalResult[A] = ReaderT[[A1] =>> Either[EvalError, A1], Env[A],A]
-
   // Here's an ADT (abstract data type) for our expression evaluator
   sealed trait Exp[A]
   case class Val[A](value: A) extends Exp[A]
@@ -73,17 +70,6 @@ object EvalScalaz extends App {
   case class Mul[A](left: Exp[A], right: Exp[A]) extends Exp[A]
   case class Div[A](left: Exp[A], right: Exp[A]) extends Exp[A]
   case class Var[A](identifier: String) extends Exp[A]
-
-  // ZPure[W, S1, S2, R, E, A]
-
-  // to learn: if it has no state or no log, do you use any or nothing?
-
-  // type Result[A] = ZPure[Log, Any, Any, Env[A], Error, A]
-
-//  type Result[A] = WriterT[ReaderT[
-
-  // type ResultR[A] = Kleisli[Either[Error,?],Env[A],A]
-  // type ResultRW[A] = WriterT[List[String],ResultR,A]
 
   import Numeric.ops._
 
@@ -116,32 +102,35 @@ object EvalScalaz extends App {
     }
   }
 
-  // // Evaluator
-  // def eval[A: Numeric](exp: Exp[A]): Result[A] =
-  //   exp match {
-  //     case Var(id)    => handleVar(id)
-  //     case Val(value) => ZPure.succeed(value)
-  //     case Add(l, r)  => handleAdd(l, r)
-  //     case Sub(l, r)  => handleSub(l, r)
-  //     case Mul(l, r)  => handleMul(l, r)
-  //     case Div(l, r)  => handleDiv(l, r)
-  //   }
+  // Evaluator
+  def eval[A: Numeric](exp: Exp[A]): WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A] =
+    exp match {
+      case Var(id)    => handleVar(id)
+      case Val(value) => WriterT(Kleisli((env: Env[A]) => 
+        Right((List(s"Pure value $value"), value)): Either[Error,(List[String],A)]))
+      case Add(l, r)  => handleAdd(l, r)
+      case Sub(l, r)  => handleSub(l, r)
+      case Mul(l, r)  => handleMul(l, r)
+      case Div(l, r)  => handleDiv(l, r)
+    }
 
-  // def handleVar[A: Numeric](s: String): Result[A] =
-  //   (for (
-  //     env <- ZPure.environment[Any, Env[A]];
-  //     value <- ZPure
-  //       .fromOption(env.get(s))
-  //       .mapError(_ => EvalZPure.SymbolNotFound)
-  //   ) yield value).log(s"Get $s")
+  def handleVar[A: Numeric](s: String): WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A] = {
+    WriterT(Kleisli((env: Env[A]) =>
+      env.get(s) match {
+        case Some(value) =>
+          Right((List(s"Looked up $s and got $value"), value)): Either[Error,(List[String],A)]
+        case None => 
+          Left(SymbolNotFound): Either[Error,(List[String],A)]
+      }))   
+  }
 
-  // def handleAdd[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) + eval(r)
-  // def handleMul[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) * eval(r)
-  // def handleDiv[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) / eval(r)
-  // def handleSub[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) - eval(r)
+  def handleAdd[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) + eval(r)
+  def handleMul[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) * eval(r)
+  def handleDiv[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) / eval(r)
+  def handleSub[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) - eval(r)
 
     val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
     val exp1 = Add(Mul(Val(10), Var("y")),Var("z"))
 
-    println("Hello world!")
+    println(s"exp1 ${eval(exp1).run(env1)}")
 }
