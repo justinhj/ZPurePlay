@@ -1,11 +1,9 @@
 import scala.math.{Numeric => _}
+import scalaz._
+import std.AllFunctions._
+import std.AllInstances._
 
-import cats.implicits._
-import cats.data._
-import cats.kernel.Monoid
-import cats.Applicative
-
-object EvalCats extends App {
+object EvalScalaz extends App {
 
   // Our Numeric
   object Numeric {
@@ -84,67 +82,37 @@ object EvalCats extends App {
 
 //  type Result[A] = WriterT[ReaderT[
 
-  type ResultR[A] = Kleisli[Either[Error,?],Env[A],A]
-  type ResultRW[A] = WriterT[ResultR,List[String],A]
+  // type ResultR[A] = Kleisli[Either[Error,?],Env[A],A]
+  // type ResultRW[A] = WriterT[List[String],ResultR,A]
 
   import Numeric.ops._
 
-  implicit def numericZResult[A: Numeric]: Numeric[ResultRW[A]] = new Numeric[ResultRW[A]] {
-    def add(x: ResultRW[A], y: ResultRW[A]): ResultRW[A] = {
-      //val ass = WriterT.liftF[ResultR,List[String],A](Kleisli.liftF((a: A) => (b: A) => a + b))
+  implicit def numericZResult[A: Numeric]: Numeric[WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A]] =
+    new Numeric[WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A]] {
+        implicit val rwApply = Apply[WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],?]]
 
-      // Reader ap works...
-      val kr: ResultR[Int] = Kleisli.liftF(Either.right(10))
-      val krInc: ResultR[Int => Int] = Kleisli.liftF(Either.right((a: Int) => a + 1))
-
-      val result = krInc.ap(kr)
-
-      val w: WriterT[Either[String,?],List[String],Int] = WriterT.liftF(Either.right(10))
-      val wInc: WriterT[Either[String,?],List[String],Int => Int] = WriterT.liftF(Either.right((a: Int) => a + 1))
-
-      val result2 = w.ap(wInc)
-
-      // Goal is to do this with ResultRW
-      //val wr: WriterT[ResultR,List[String],Int] = WriterT.liftF(Kleisli.liftF(Either.right(10)))
-      //val wInc: WriterT[Either[String,?],List[String],Int => Int] = WriterT.liftF(Either.right((a: Int) => a + 1))
-
-
-      // val m = implicitly[Monoid[List[String]]]
-      // implicit val app = implicitly[Applicative[Kleisli[Either[Error,?],Env[Int],?]]]
-
-      // // (implicit monoidL: Monoid[L], F: Applicative[F])
-
-      // val r1: Kleisli[Either[Error,?],Env[Int],Int] = Kleisli.liftF(Either.right[Error,Int](10))
-
-      // val f1: Kleisli[Either[Error,?],Env[Int],Int => Int] = Kleisli.liftF(Either.right[Error,Int => Int]((n: Int) => n + 1))
-
-      // //val f1 = WriterT.liftF[Kleisli[Either[Error,?],Env[Int],?],List[String],Int](r1)//(m,app)
-      // // : WriterT[Kleisli[Either[Error,?],Env[Int],?],List[String],Int]
-
-      // val result3: ResultR[Int] = app.ap(f1)(r1)
-
-      // x.ap(y) {
-
-      // }
-      ???
-      // x.zip(y).flatMap{
-      //   case (a,b) => 
-      //     ZPure.succeed(a + b).log(s"Add $a and $b")
-      // }
+    def add(x: WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A], y: WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A]): WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A] = {
+      rwApply.apply2(x,y) {
+        case (a,b) => a + b
+      }
     }
 
-    def mul(x: ResultRW[A], y: ResultRW[A]): ResultRW[A] = {
-      ??? // x.zip(y).map{case (a,b) => a * b}
-
+    def mul(x: WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A], y: WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A]): WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A] = {
+      rwApply.apply2(x,y) {
+        case (a,b) => a * b
+      }
     }
 
-    def sub(x: ResultRW[A], y: ResultRW[A]): ResultRW[A] = {
-      ??? // x.zip(y).map{case (a,b) => a - b}
+    def sub(x: WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A], y: WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A]): WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A] = {
+      rwApply.apply2(x,y) {
+        case (a,b) => a - b
+      }    
     }
 
-    def div(x: ResultRW[A], y: ResultRW[A]): ResultRW[A] = {
-      ??? // x.zip(y).map{case (a,b) => a / b}
-
+    def div(x: WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A], y: WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A]): WriterT[List[String],Kleisli[Either[Error,?],Env[A],?],A] = {
+      rwApply.apply2(x,y) {
+        case (a,b) => a / b
+      }   
     }
   }
 

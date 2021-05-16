@@ -131,7 +131,6 @@ object EvalZPure extends App {
 
     val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
     val exp1 = Add(Mul(Val(10), Var("y")),Var("z"))
-
     val eval1 = eval(exp1).provide(env1).runAll()
 
     putStrLn(s"Eval1 result $eval1").exitCode

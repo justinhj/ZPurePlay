@@ -6,7 +6,6 @@ object Leet3Sum2 extends App {
   def threeSum(nums: Array[Int]): List[List[Int]] = {
     Arrays.sort(nums)
 
-
     val indexBuilder = Map.newBuilder[Int,Int]
     var ib = 0
     while(ib < nums.length) {
