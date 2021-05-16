@@ -58,14 +58,8 @@ object EvalCats extends App {
   object SymbolNotFound extends Error
   object DivisionByZero extends Error
 
-  // Log type is just a list of strings
-  type Log = String
-
   // Environment type (our symbol table for lookups)
   type Env[A] = Map[String, A]
-
-  // Probably don't need a program effect type, but it won't look like this anyway
-  //type EvalResult[A] = ReaderT[[A1] =>> Either[EvalError, A1], Env[A],A]
 
   // Here's an ADT (abstract data type) for our expression evaluator
   sealed trait Exp[A]
@@ -76,104 +70,66 @@ object EvalCats extends App {
   case class Div[A](left: Exp[A], right: Exp[A]) extends Exp[A]
   case class Var[A](identifier: String) extends Exp[A]
 
-  // ZPure[W, S1, S2, R, E, A]
-
-  // to learn: if it has no state or no log, do you use any or nothing?
-
-  // type Result[A] = ZPure[Log, Any, Any, Env[A], Error, A]
-
-//  type Result[A] = WriterT[ReaderT[
-
-  type ResultR[A] = Kleisli[Either[Error,?],Env[A],A]
-  type ResultRW[A] = WriterT[ResultR,List[String],A]
+  // Using nice type aliases breaks the type inference so I write the types out by hand instead
+  // type ResultR[A] = Kleisli[Either[Error,?],Env[A],A]
+  // type ResultRW[A] = WriterT[ResultR,List[String],A]
 
   import Numeric.ops._
 
-  implicit def numericZResult[A: Numeric]: Numeric[ResultRW[A]] = new Numeric[ResultRW[A]] {
-    def add(x: ResultRW[A], y: ResultRW[A]): ResultRW[A] = {
-      //val ass = WriterT.liftF[ResultR,List[String],A](Kleisli.liftF((a: A) => (b: A) => a + b))
-
-      // Reader ap works...
-      val kr: ResultR[Int] = Kleisli.liftF(Either.right(10))
-      val krInc: ResultR[Int => Int] = Kleisli.liftF(Either.right((a: Int) => a + 1))
-
-      val result = krInc.ap(kr)
-
-      val w: WriterT[Either[String,?],List[String],Int] = WriterT.liftF(Either.right(10))
-      val wInc: WriterT[Either[String,?],List[String],Int => Int] = WriterT.liftF(Either.right((a: Int) => a + 1))
-
-      val result2 = w.ap(wInc)
-
-      // Goal is to do this with ResultRW
-      //val wr: WriterT[ResultR,List[String],Int] = WriterT.liftF(Kleisli.liftF(Either.right(10)))
-      //val wInc: WriterT[Either[String,?],List[String],Int => Int] = WriterT.liftF(Either.right((a: Int) => a + 1))
-
-
-      // val m = implicitly[Monoid[List[String]]]
-      // implicit val app = implicitly[Applicative[Kleisli[Either[Error,?],Env[Int],?]]]
-
-      // // (implicit monoidL: Monoid[L], F: Applicative[F])
-
-      // val r1: Kleisli[Either[Error,?],Env[Int],Int] = Kleisli.liftF(Either.right[Error,Int](10))
-
-      // val f1: Kleisli[Either[Error,?],Env[Int],Int => Int] = Kleisli.liftF(Either.right[Error,Int => Int]((n: Int) => n + 1))
-
-      // //val f1 = WriterT.liftF[Kleisli[Either[Error,?],Env[Int],?],List[String],Int](r1)//(m,app)
-      // // : WriterT[Kleisli[Either[Error,?],Env[Int],?],List[String],Int]
-
-      // val result3: ResultR[Int] = app.ap(f1)(r1)
-
-      // x.ap(y) {
-
-      // }
-      ???
-      // x.zip(y).flatMap{
-      //   case (a,b) => 
-      //     ZPure.succeed(a + b).log(s"Add $a and $b")
-      // }
+  implicit def numericZResult[A: Numeric]: Numeric[WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A]] = new Numeric[WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A]] {
+    def add(x: WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A], y: WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A]): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] = {
+      x.map2(y) {
+        case (a,b) => a + b
+      }
     }
 
-    def mul(x: ResultRW[A], y: ResultRW[A]): ResultRW[A] = {
-      ??? // x.zip(y).map{case (a,b) => a * b}
-
+    def mul(x: WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A], y: WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A]): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] = {
+       x.map2(y) {
+        case (a,b) => a * b
+      }
     }
 
-    def sub(x: ResultRW[A], y: ResultRW[A]): ResultRW[A] = {
-      ??? // x.zip(y).map{case (a,b) => a - b}
+    def sub(x: WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A], y: WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A]): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] = {
+      x.map2(y) {
+        case (a,b) => a - b
+      }    
     }
 
-    def div(x: ResultRW[A], y: ResultRW[A]): ResultRW[A] = {
-      ??? // x.zip(y).map{case (a,b) => a / b}
-
+    def div(x: WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A], y: WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A]): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] = {
+      x.map2(y) {
+        case (a,b) => a / b
+      }    
     }
   }
 
-  // // Evaluator
-  // def eval[A: Numeric](exp: Exp[A]): Result[A] =
-  //   exp match {
-  //     case Var(id)    => handleVar(id)
-  //     case Val(value) => ZPure.succeed(value)
-  //     case Add(l, r)  => handleAdd(l, r)
-  //     case Sub(l, r)  => handleSub(l, r)
-  //     case Mul(l, r)  => handleMul(l, r)
-  //     case Div(l, r)  => handleDiv(l, r)
-  //   }
+  // Evaluator
+  def eval[A: Numeric](exp: Exp[A]): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] =
+    exp match {
+      case Var(id)    => handleVar(id)
+      case Val(value) => WriterT.liftF(ReaderT.liftF(Right(value)))
+      case Add(l, r)  => handleAdd(l, r)
+      case Sub(l, r)  => handleSub(l, r)
+      case Mul(l, r)  => handleMul(l, r)
+      case Div(l, r)  => handleDiv(l, r)
+    }
 
-  // def handleVar[A: Numeric](s: String): Result[A] =
-  //   (for (
-  //     env <- ZPure.environment[Any, Env[A]];
-  //     value <- ZPure
-  //       .fromOption(env.get(s))
-  //       .mapError(_ => EvalZPure.SymbolNotFound)
-  //   ) yield value).log(s"Get $s")
+  def handleVar[A: Numeric](s: String): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] = {
+      WriterT(Kleisli((env: Env[A]) =>
+      env.get(s) match {
+        case Some(value) =>
+          Right((List(s"Looked up $s and got $value"), value)): Either[Error,(List[String],A)]
+        case None => 
+          Left(SymbolNotFound): Either[Error,(List[String],A)]
+      }))   
+  }
 
-  // def handleAdd[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) + eval(r)
-  // def handleMul[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) * eval(r)
-  // def handleDiv[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) / eval(r)
-  // def handleSub[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) - eval(r)
+  def handleAdd[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) + eval(r)
+  def handleMul[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) * eval(r)
+  def handleDiv[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) / eval(r)
+  def handleSub[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) - eval(r)
 
-    val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
-    val exp1 = Add(Mul(Val(10), Var("y")),Var("z"))
+  val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
+  val exp1 = Add(Mul(Val(10), Var("y")),Var("z"))
 
-    println("Hello world!")
+  println(s"Eval gave ${eval(exp1).run(env1)}")
 }

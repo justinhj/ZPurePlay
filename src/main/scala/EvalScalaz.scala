@@ -129,8 +129,8 @@ object EvalScalaz extends App {
   def handleDiv[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) / eval(r)
   def handleSub[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) - eval(r)
 
-    val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
-    val exp1 = Add(Mul(Val(10), Var("y")),Var("z"))
+  val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
+  val exp1 = Add(Mul(Val(10), Var("y")),Var("z"))
 
-    println(s"exp1 ${eval(exp1).run(env1)}")
+  println(s"exp1 ${eval(exp1).run(env1)}")
 }
