@@ -1,14 +1,12 @@
-import zio.console.putStrLn
 import zio.prelude._
 import zio.prelude.fx.ZPure
-import zio.{App, ExitCode, URIO}
 import scala.math.{Numeric => _}
 
-object EvalZPure extends App {
+object EvalZPure {
 
   // Our Numeric
   object Numeric {
-    // This can be used to summon a numeric (same as implicitly)
+    // This can be used to summon a numeric (same as the library function `implicitly`)
     def apply[T](implicit numeric: Numeric[T]): Numeric[T] = numeric
 
     object ops {
@@ -26,9 +24,7 @@ object EvalZPure extends App {
         def div(b: T): T = n.div(a, b)
         def /(b: T): T = n.div(a, b)
       }
-
     }
-
   }
 
   trait Numeric[T] {
@@ -63,9 +59,6 @@ object EvalZPure extends App {
   // Environment type (our symbol table for lookups)
   type Env[A] = Map[String, A]
 
-  // Probably don't need a program effect type, but it won't look like this anyway
-  //type EvalResult[A] = ReaderT[[A1] =>> Either[EvalError, A1], Env[A],A]
-
   // Here's an ADT (abstract data type) for our expression evaluator
   sealed trait Exp[A]
   case class Val[A](value: A) extends Exp[A]
@@ -75,31 +68,38 @@ object EvalZPure extends App {
   case class Div[A](left: Exp[A], right: Exp[A]) extends Exp[A]
   case class Var[A](identifier: String) extends Exp[A]
 
-  // ZPure[W, S1, S2, R, E, A]
-
-  // to learn: if it has no state or no log, do you use any or nothing?
-
   type Result[A] = ZPure[Log, Any, Any, Env[A], Error, A]
 
   import Numeric.ops._
 
   implicit def numericZResult[A: Numeric]: Numeric[Result[A]] = new Numeric[Result[A]] {
     def add(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).flatMap{case (a,b) => ZPure.succeed(a + b).log(s"Add $a and $b")}
+      x.zip(y).flatMap{case (a,b) =>  {
+        val result = a + b
+        ZPure.succeed(result).log(s"Add $a and $b ($result)")}
+      }
+      // x.zip(y).flatMap{case (a,b) => ZPure.succeed(a + b).log(s"Add $a and $b")}
     }
 
     def mul(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).map{case (a,b) => a * b}
-
+      x.zip(y).flatMap{case (a,b) =>
+        val result = a * b 
+        ZPure.succeed(result).log(s"Mul $a with $b ($result)")
+      }
     }
 
     def sub(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).map{case (a,b) => a - b}
+       x.zip(y).flatMap{case (a,b) =>
+        val result = a - b 
+        ZPure.succeed(result).log(s"Subtract $b from $a ($result)")
+      }
     }
 
     def div(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).map{case (a,b) => a / b}
-
+      x.zip(y).flatMap{case (a,b) =>
+        val result = a / b 
+        ZPure.succeed(result).log(s"Divided $a by $b ($result)")
+      }
     }
   }
 
@@ -107,32 +107,48 @@ object EvalZPure extends App {
   def eval[A: Numeric](exp: Exp[A]): Result[A] =
     exp match {
       case Var(id)    => handleVar(id)
-      case Val(value) => ZPure.succeed(value)
+      case Val(value) => ZPure.succeed(value).log(s"Literal value $value")
       case Add(l, r)  => handleAdd(l, r)
       case Sub(l, r)  => handleSub(l, r)
       case Mul(l, r)  => handleMul(l, r)
       case Div(l, r)  => handleDiv(l, r)
     }
 
-  def handleVar[A: Numeric](s: String): Result[A] =
-    (for (
-      env <- ZPure.environment[Any, Env[A]];
-      value <- ZPure
-        .fromOption(env.get(s))
-        .mapError(_ => EvalZPure.SymbolNotFound)
-    ) yield value).log(s"Get $s")
+  def handleVar[A: Numeric](s: String): Result[A] = {
+      ZPure.environment[Any, Env[A]].flatMap {
+        env =>
+         ZPure.fromOption(env.get(s)).
+         mapError(_ => EvalZPure.SymbolNotFound).
+         flatMap{
+          a =>
+            ZPure.log(s"Var $s value $a").as(a)
+         }      
+      }
+  }
 
   def handleAdd[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) + eval(r)
   def handleMul[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) * eval(r)
   def handleDiv[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) / eval(r)
   def handleSub[A: Numeric](l: Exp[A], r: Exp[A]) = eval(l) - eval(r)
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
+  def main(args: Array[String]): Unit = {
 
     val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
-    val exp1 = Add(Mul(Val(10), Var("y")),Var("z"))
+
+    val exp1 = Add(
+                Mul(
+                  Mul(
+                    Val(10),
+                    Var("x")),
+                  Var("y")
+                ),
+                Var("z"))
+    
     val eval1 = eval(exp1).provide(env1).runAll()
 
-    putStrLn(s"Eval1 result $eval1").exitCode
+    eval1._1.foreach {
+      l => println(l)
+    }
+
   }
 }
