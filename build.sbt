@@ -19,7 +19,7 @@ lazy val root = (project in file("."))
       "dev.zio" %% "zio-test" % zioVersion % Test,
       "dev.zio" %% "zio-test-sbt" % zioVersion % "test",
       "dev.zio" %% "zio-test-magnolia" % zioVersion % "test",
-      "dev.zio" %% "zio-prelude" % "1.0.0-RC3",
+      "dev.zio" %% "zio-prelude" % "1.0.0-RC5",
       "org.scalaz" %% "scalaz-core" % "7.3.3",
       "org.typelevel" %% "cats-core" % "2.3.0",
       "com.lihaoyi" %% "utest" % "0.7.10" % "test"

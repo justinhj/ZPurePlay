@@ -68,7 +68,7 @@ object EvalZPure {
   case class Div[A](left: Exp[A], right: Exp[A]) extends Exp[A]
   case class Var[A](identifier: String) extends Exp[A]
 
-  type Result[A] = ZPure[Log, Any, Any, Env[A], Error, A]
+  type Result[A] = ZPure[Log, Int, Int, Env[A], Error, A]
 
   import Numeric.ops._
 
@@ -114,15 +114,25 @@ object EvalZPure {
       case Div(l, r)  => handleDiv(l, r)
     }
 
+  // def handleVar2[A: Numeric](s: String): Result[A] = {
+  //   (for (
+  //     env <- ZPure.environment[Any,Env[A]];
+  //     aIndent <- ZPure.fromOption(env.get(s)).mapError(_ => EvalZPure.SymbolNotFound).getState
+  //   ) yield (aIndent)).log("hello")
+
+  // }
+
   def handleVar[A: Numeric](s: String): Result[A] = {
       ZPure.environment[Any, Env[A]].flatMap {
         env =>
          ZPure.fromOption(env.get(s)).
          mapError(_ => EvalZPure.SymbolNotFound).
+         getState.
          flatMap{
-          a =>
-            ZPure.log(s"Var $s value $a").as(a)
-         }      
+           case (indent: Int,a) =>
+            ZPure.succeed(a).
+              log(s"Var $s value $a indent $indent") : Result[A]
+         }
       }
   }
 
@@ -144,7 +154,10 @@ object EvalZPure {
                 ),
                 Var("z"))
     
-    val eval1 = eval(exp1).provide(env1).runAll()
+    val eval1 = eval(exp1).
+      provideState(0).
+      provide(env1).
+      runAll()
 
     eval1._1.foreach {
       l => println(l)
