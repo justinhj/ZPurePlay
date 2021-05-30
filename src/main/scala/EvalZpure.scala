@@ -59,6 +59,9 @@ object EvalZPure {
   // Environment type (our symbol table for lookups)
   type Env[A] = Map[String, A]
 
+  // Produce n tabs as a String
+  private def nTabs(n: Int): String = List.fill(n)('\t').mkString
+
   // Here's an ADT (abstract data type) for our expression evaluator
   sealed trait Exp[A]
   case class Val[A](value: A) extends Exp[A]
@@ -74,32 +77,52 @@ object EvalZPure {
 
   implicit def numericZResult[A: Numeric]: Numeric[Result[A]] = new Numeric[Result[A]] {
     def add(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).flatMap{case (a,b) =>  {
-        val result = a + b
-        ZPure.succeed(result).log(s"Add $a and $b ($result)")}
-      }
+      x.zip(y).
+        getState.
+        flatMap{
+          case (indent,(a,b)) =>  {
+            val result = a + b
+          ZPure.succeed(result).
+            provideState(indent + 1).
+            log(s"Add $a and $b $result $indent")}
+        }
       // x.zip(y).flatMap{case (a,b) => ZPure.succeed(a + b).log(s"Add $a and $b")}
     }
 
     def mul(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).flatMap{case (a,b) =>
-        val result = a * b 
-        ZPure.succeed(result).log(s"Mul $a with $b ($result)")
-      }
+      x.zip(y).
+        getState.
+        flatMap{
+          case (indent,(a,b)) =>  {
+            val result = a * b
+          ZPure.succeed(result).
+            provideState(indent + 1).
+            log(s"Multiply $a and $b $result $indent")}
+        }
     }
 
     def sub(x: Result[A], y: Result[A]): Result[A] = {
-       x.zip(y).flatMap{case (a,b) =>
-        val result = a - b 
-        ZPure.succeed(result).log(s"Subtract $b from $a ($result)")
-      }
+      x.zip(y).
+        getState.
+        flatMap{
+          case (indent,(a,b)) =>  {
+            val result = a - b
+          ZPure.succeed(result).
+            provideState(indent + 1).
+            log(s"Subtract $b from $a $result $indent")}
+        }
     }
 
     def div(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).flatMap{case (a,b) =>
-        val result = a / b 
-        ZPure.succeed(result).log(s"Divided $a by $b ($result)")
-      }
+      x.zip(y).
+        getState.
+        flatMap{
+          case (indent,(a,b)) =>  {
+            val result = a / b
+          ZPure.succeed(result).
+            provideState(indent + 1).
+            log(s"Divide $a by $b $result $indent")}
+        }
     }
   }
 
@@ -107,31 +130,27 @@ object EvalZPure {
   def eval[A: Numeric](exp: Exp[A]): Result[A] =
     exp match {
       case Var(id)    => handleVar(id)
-      case Val(value) => ZPure.succeed(value).log(s"Literal value $value")
+      case Val(value) => ZPure.succeed(value).
+                          getState.flatMap {
+                            case (indent, a) => 
+                              ZPure.succeed(a).log(s"Literal value $value $indent")
+                          }
       case Add(l, r)  => handleAdd(l, r)
       case Sub(l, r)  => handleSub(l, r)
       case Mul(l, r)  => handleMul(l, r)
       case Div(l, r)  => handleDiv(l, r)
     }
 
-  // def handleVar2[A: Numeric](s: String): Result[A] = {
-  //   (for (
-  //     env <- ZPure.environment[Any,Env[A]];
-  //     aIndent <- ZPure.fromOption(env.get(s)).mapError(_ => EvalZPure.SymbolNotFound).getState
-  //   ) yield (aIndent)).log("hello")
-
-  // }
-
   def handleVar[A: Numeric](s: String): Result[A] = {
-      ZPure.environment[Any, Env[A]].flatMap {
+      ZPure.environment[Int, Env[A]].flatMap {
         env =>
          ZPure.fromOption(env.get(s)).
          mapError(_ => EvalZPure.SymbolNotFound).
          getState.
          flatMap{
-           case (indent: Int,a) =>
+           case (indent,a) =>
             ZPure.succeed(a).
-              log(s"Var $s value $a indent $indent") : Result[A]
+              log(s"Var $s value $a indent $indent")
          }
       }
   }
@@ -145,10 +164,23 @@ object EvalZPure {
 
     val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
 
+    // Literal value 20 0
+    // Var y value 10 indent 0
+    // Subtract 10 from 20 10 0
+    // Var x value 1 indent 1
+    // Multiply 10 and 1 10 1
+    // Var y value 10 indent 2
+    // Multiply 10 and 10 100 2
+    // Var z value 100 indent 3
+    // Add 100 and 100 200 3
+
     val exp1 = Add(
                 Mul(
                   Mul(
-                    Val(10),
+                    Sub(
+                      Val(20),
+                      Var("y")
+                    ),
                     Var("x")),
                   Var("y")
                 ),
