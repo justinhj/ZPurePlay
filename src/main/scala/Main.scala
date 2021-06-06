@@ -22,8 +22,6 @@ object Main extends App {
     else ZPure.succeed(a * 2)
   }
 
-  // To learn: what is Chunk.
-
   val s1: ZPure[WString, Any, Any, Any, Error, (Int, Int, Int)] = for (
     a <- ZPure.succeed(4);
     _ <- ZPure.log(List("init 4"));
