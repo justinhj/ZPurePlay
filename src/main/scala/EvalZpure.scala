@@ -146,9 +146,15 @@ object EvalZPure {
     
     val eval1 = eval(exp1).provide(env1).runAll()
 
-    eval1._1.foreach {
-      l => println(l)
+    eval1._2 match {
+      case Right(value) => 
+        println(s"Succeeded with value ${value._2}")
+        eval1._1.foreach {
+          l => 
+            println(l)
+      }
+      case Left(err) =>
+        println(s"oops! $err")
     }
-
   }
 }
