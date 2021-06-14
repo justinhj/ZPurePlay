@@ -22,6 +22,7 @@ lazy val root = (project in file("."))
       "dev.zio" %% "zio-prelude" % "1.0.0-RC3",
       "org.scalaz" %% "scalaz-core" % "7.3.3",
       "org.typelevel" %% "cats-core" % "2.3.0",
+      "org.typelevel" %% "cats-mtl" % "1.2.0",
       "com.lihaoyi" %% "utest" % "0.7.10" % "test"
     ),
     testFrameworks ++= Seq(
