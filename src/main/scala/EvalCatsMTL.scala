@@ -2,8 +2,6 @@ import scala.math.{Numeric => _}
 
 import cats.implicits._
 import cats.mtl.implicits._
-
-
 import cats.data._
 import cats.Id
 import cats.kernel.Monoid
@@ -106,7 +104,7 @@ object EvalCatsMTL extends App {
 
   }
 
-  def handleVar2[A: Numeric](s: String): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] = {
+  def handleVar[A: Numeric](s: String): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] = {
       WriterT(Kleisli((env: Env[A]) =>
       env.get(s) match {
         case Some(value) =>
@@ -116,20 +114,52 @@ object EvalCatsMTL extends App {
       }))   
   }
 
-  def handleAdd[F[_], A: Numeric](l: Exp[A], r: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
-    E.map2(eval2(l),eval2(r))(_ + _)
+  def handleAdd[F[_], A: Numeric](l: Exp[A], r: Exp[A])
+      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
+    eval(l).flatMap {
+      la =>
+        eval(r).flatMap {
+          ra =>
+            val c = la + ra
+            L.tell(List(s"Add $la and $ra gave $c")) *> E.pure(c)
+        }
+    }
   }
 
-  def handleMul[F[_], A: Numeric](l: Exp[A], r: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
-    E.map2(eval2(l),eval2(r))(_ * _)
+  def handleMul[F[_], A: Numeric](l: Exp[A], r: Exp[A])
+      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
+    eval(l).flatMap {
+          la =>
+            eval(r).flatMap {
+              ra =>
+                val c = la * ra
+                L.tell(List(s"Multiply $la and $ra gave $c")) *> E.pure(c)
+            }
+    }  
   }
 
-  def handleDiv[F[_], A: Numeric](l: Exp[A], r: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
-    E.map2(eval2(l),eval2(r))(_ / _)
+  def handleDiv[F[_], A: Numeric](l: Exp[A], r: Exp[A])
+      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
+    eval(l).flatMap {
+      la =>
+        eval(r).flatMap {
+          ra =>
+            val c = la / ra
+            L.tell(List(s"Div $la by $ra gave $c")) *> E.pure(c)
+        }
+    }
   }
 
-  def handleSub[F[_], A: Numeric](l: Exp[A], r: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
-    E.map2(eval2(l),eval2(r))(_ - _)
+  def handleSub[F[_], A: Numeric](l: Exp[A], r: Exp[A])
+      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
+    eval(l).flatMap {
+        la =>
+          eval(r).flatMap {
+            ra =>
+              val c = la - ra
+              L.tell(List(s"Subtract $ra from $la gave $c")) *> E.pure(c)
+          }
+      }
   }
 
   val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
@@ -146,7 +176,7 @@ object EvalCatsMTL extends App {
               ),
               Var("z"))
 
-  def eval2[F[_],A: Numeric](exp: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = 
+  def eval[F[_],A: Numeric](exp: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = 
       exp match {
         case Val(value) => E.pure(value)
         case Var(id) => handleVar(id)
@@ -165,8 +195,9 @@ object EvalCatsMTL extends App {
         }
     }
 
+  // "materialize" the program by running it with an expression and defining the types to use
   val program =
-    eval2[WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],?],Int](exp1)
+    eval[WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],?],Int](exp1)
 
   program.run.value.run(env1) match {
     case Left(err) => println(s"Failed with error $err")
