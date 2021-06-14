@@ -86,33 +86,23 @@ object EvalCatsMTL extends App {
 
   import Numeric.ops._
 
-  implicit def numericZResult[A: Numeric]: Numeric[WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]] = 
-    new Numeric[WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]] {
+  // implicit def numericZResult[A: Numeric]: Numeric[WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]] = 
+  //   new Numeric[WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]] {
 
-      override def add(a: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A], 
-        b: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]) 
-        = ???
-      override def sub(a: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A], 
-        b: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]) 
-        = ???   
-      override def mul(a: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A], 
-        b: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]) 
-        = ???   
-      override def div(a: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A], 
-        b: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]) 
-        = ???
+  //     override def add(a: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A], 
+  //       b: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]) 
+  //       = ???
+  //     override def sub(a: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A], 
+  //       b: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]) 
+  //       = ???   
+  //     override def mul(a: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A], 
+  //       b: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]) 
+  //       = ???   
+  //     override def div(a: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A], 
+  //       b: WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],A]) 
+  //       = ???
 
-  }
-
-  def handleVar[A: Numeric](s: String): WriterT[Kleisli[Either[Error,?],Env[A],?],List[String],A] = {
-      WriterT(Kleisli((env: Env[A]) =>
-      env.get(s) match {
-        case Some(value) =>
-          Right((List(s"Looked up $s and got $value"), value)): Either[Error,(List[String],A)]
-        case None => 
-          Left(SymbolNotFound): Either[Error,(List[String],A)]
-      }))   
-  }
+  // }
 
   def handleAdd[F[_], A: Numeric](l: Exp[A], r: Exp[A])
       (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
@@ -162,6 +152,16 @@ object EvalCatsMTL extends App {
       }
   }
 
+  def handleVar[F[_],A: Numeric](id: String)
+    (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = 
+    R.ask.flatMap {
+      env => 
+        env.get(id) match {
+          case Some(value) => L.tell(List(s"Var $id was $value")) *> E.pure(value)
+          case None => E.raiseError(SymbolNotFound)
+        }
+    }
+
   val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
 
   val exp1 = Mul(
@@ -185,15 +185,6 @@ object EvalCatsMTL extends App {
         case Div(left,right) => handleDiv(left,right)
         case Mul(left,right) => handleMul(left,right)
       }
-
-  def handleVar[F[_],A: Numeric](id: String)(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = 
-    R.ask.flatMap {
-      env => 
-        env.get(id) match {
-          case Some(value) => L.tell(List(s"Var $id was $value")) *> E.pure(value)
-          case None => E.raiseError(SymbolNotFound)
-        }
-    }
 
   // "materialize" the program by running it with an expression and defining the types to use
   val program =
