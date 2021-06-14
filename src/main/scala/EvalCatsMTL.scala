@@ -134,10 +134,10 @@ object EvalCatsMTL extends App {
 
   val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
 
-  val exp1 = Add(
+  val exp1 = Mul(
               Add(
-                Add(
-                  Add(
+                Sub(
+                  Div(
                     Val(20),
                     Var("y")
                   ),
@@ -151,6 +151,9 @@ object EvalCatsMTL extends App {
         case Val(value) => E.pure(value)
         case Var(id) => handleVar(id)
         case Add(left,right) => handleAdd(left,right)
+        case Sub(left,right) => handleSub(left,right)
+        case Div(left,right) => handleDiv(left,right)
+        case Mul(left,right) => handleMul(left,right)
       }
 
   def handleVar[F[_],A: Numeric](id: String)(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = 
@@ -162,8 +165,17 @@ object EvalCatsMTL extends App {
         }
     }
 
-  val almost2 =
+  val program =
     eval2[WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],?],Int](exp1)
 
-  println(almost2.value.value.run(env1))
+  program.run.value.run(env1) match {
+    case Left(err) => println(s"Failed with error $err")
+    case Right((log, result)) => {
+      println(s"Result: $result")
+      log.foreach {
+        entry =>
+          println(s"\t$entry")
+      }
+    }
+  }
 }
