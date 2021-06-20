@@ -96,7 +96,7 @@ object EvalCatsMTL extends App {
         }
     }
   }
-
+  
   def handleMul[F[_], A: Numeric](l: Exp[A], r: Exp[A])
       (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: Raise[F, Error], M: Monad[F]): F[A] = {
     eval(l).flatMap {

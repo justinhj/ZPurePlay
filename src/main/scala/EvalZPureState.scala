@@ -2,7 +2,7 @@ import zio.prelude._
 import zio.prelude.fx.ZPure
 import scala.math.{Numeric => _}
 
-object EvalZPure {
+object EvalZPureState {
 
   // Our Numeric
   object Numeric {
@@ -59,6 +59,9 @@ object EvalZPure {
   // Environment type (our symbol table for lookups)
   type Env[A] = Map[String, A]
 
+  // Produce n tabs as a String
+  private def nTabs(n: Int): String = List.fill(n)('\t').mkString
+
   // Here's an ADT (abstract data type) for our expression evaluator
   sealed trait Exp[A]
   case class Val[A](value: A) extends Exp[A]
@@ -68,38 +71,51 @@ object EvalZPure {
   case class Div[A](left: Exp[A], right: Exp[A]) extends Exp[A]
   case class Var[A](identifier: String) extends Exp[A]
 
-  type Result[A] = ZPure[Log, Any, Any, Env[A], Error, A]
+  type Result[A] = ZPure[Log, Int, Int, Env[A], Error, A]
 
   import Numeric.ops._
 
   implicit def numericZResult[A: Numeric]: Numeric[Result[A]] = new Numeric[Result[A]] {
     def add(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).flatMap{case (a,b) =>  {
-        val result = a + b
-        ZPure.succeed(result).log(s"Add $a and $b ($result)")}
-      }
+      x.zip(y).
+          flatMap{
+            case (a,b) =>  {
+              val result = a + b
+              ZPure.update((n: Int) => n + 1) *>
+              ZPure.succeed(result).
+              log(s"Add $a and $b $result")}
+        }
       // x.zip(y).flatMap{case (a,b) => ZPure.succeed(a + b).log(s"Add $a and $b")}
     }
 
     def mul(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).flatMap{case (a,b) =>
-        val result = a * b 
-        ZPure.succeed(result).log(s"Mul $a with $b ($result)")
-      }
+      x.zip(y).flatMap{
+          case (a,b) =>  {
+            val result = a * b
+            ZPure.update((n: Int) => n + 1) *>
+            ZPure.succeed(result).
+            log(s"Multiply $a and $b $result")}
+        }
     }
 
     def sub(x: Result[A], y: Result[A]): Result[A] = {
-       x.zip(y).flatMap{case (a,b) =>
-        val result = a - b 
-        ZPure.succeed(result).log(s"Subtract $b from $a ($result)")
-      }
+      x.zip(y).flatMap{
+          case (a,b) =>  {
+            val result = a - b
+            ZPure.update((n: Int) => n + 1) *>
+            ZPure.succeed(result).
+            log(s"Subtract $b from $a")}
+        }
     }
 
     def div(x: Result[A], y: Result[A]): Result[A] = {
-      x.zip(y).flatMap{case (a,b) =>
-        val result = a / b 
-        ZPure.succeed(result).log(s"Divided $a by $b ($result)")
-      }
+      x.zip(y).flatMap{
+          case (a,b) =>  {
+            val result = a / b
+            ZPure.update((n: Int) => n + 1) *>
+            ZPure.succeed(result).
+            log(s"Divide $a by $b $result")}
+        }
     }
   }
 
@@ -107,7 +123,13 @@ object EvalZPure {
   def eval[A: Numeric](exp: Exp[A]): Result[A] =
     exp match {
       case Var(id)    => handleVar(id)
-      case Val(value) => ZPure.succeed(value).log(s"Literal value $value")
+      case Val(value) => 
+        ZPure.update((n: Int) => n + 1) *>
+        ZPure.succeed(value).flatMap {
+          a => 
+            ZPure.succeed(a).
+            log(s"Literal value $value")
+        }
       case Add(l, r)  => handleAdd(l, r)
       case Sub(l, r)  => handleSub(l, r)
       case Mul(l, r)  => handleMul(l, r)
@@ -115,14 +137,14 @@ object EvalZPure {
     }
 
   def handleVar[A: Numeric](s: String): Result[A] = {
-      ZPure.environment[Any, Env[A]].flatMap {
+      ZPure.environment[Int, Env[A]].flatMap {
         env =>
-         ZPure.fromOption(env.get(s)).
-         mapError(_ => EvalZPure.SymbolNotFound).
-         flatMap{
-          a =>
-            ZPure.log(s"Var $s value $a").as(a)
-         }      
+          ZPure.update((n: Int) => n + 1) *>
+          ZPure.fromOption(env.get(s)).
+          mapError(_ => SymbolNotFound).
+          flatMap{
+            a => ZPure.succeed(a).log(s"Var $s value $a")
+          }
       }
   }
 
@@ -136,25 +158,29 @@ object EvalZPure {
     val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
 
     val exp1 = Add(
-                Mul(
                   Mul(
-                    Val(10),
-                    Var("x")),
-                  Var("y")
-                ),
-                Var("z"))
-    
-    val eval1 = eval(exp1).provide(env1).runAll()
+                    Mul(
+                      Val(10),
+                      Var("x")),
+                    Var("y")
+                  ),
+                  Var("z"))
+
+    val eval1 = eval(exp1).
+      provideState(0).
+      provide(env1).
+      runAll()
 
     eval1._2 match {
-      case Right(value) => 
-        println(s"Succeeded with value ${value._2}")
-        eval1._1.foreach {
-          l => 
-            println(l)
-      }
-      case Left(err) =>
-        println(s"oops! $err")
+      case Right((opCount,result)) =>
+        println(s"Computation succeeded with $result after $opCount operations.")
+      case Left(err) => 
+        println(s"Computation failed with $err.")
     }
+
+    eval1._1.foreach {
+      l => println(l)
+    }
+
   }
 }
