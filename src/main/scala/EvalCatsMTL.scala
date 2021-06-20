@@ -10,7 +10,6 @@ import cats.mtl.Ask
 import cats.mtl.Raise
 import cats.mtl.Tell
 import cats.mtl.Stateful
-import cats.MonadError
 import cats.data
 import java.lang
 import scala.collection.immutable
@@ -87,60 +86,60 @@ object EvalCatsMTL extends App {
   import Numeric.ops._
 
   def handleAdd[F[_], A: Numeric](l: Exp[A], r: Exp[A])
-      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
+      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: Raise[F, Error], M: Monad[F]): F[A] = {
     eval(l).flatMap {
       la =>
         eval(r).flatMap {
           ra =>
             val c = la + ra
-            L.tell(List(s"Add $la and $ra gave $c")) *> E.pure(c)
+            L.tell(List(s"Add $la and $ra gave $c")) *> M.pure(c)
         }
     }
   }
 
   def handleMul[F[_], A: Numeric](l: Exp[A], r: Exp[A])
-      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
+      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: Raise[F, Error], M: Monad[F]): F[A] = {
     eval(l).flatMap {
           la =>
             eval(r).flatMap {
               ra =>
                 val c = la * ra
-                L.tell(List(s"Multiply $la and $ra gave $c")) *> E.pure(c)
+                L.tell(List(s"Multiply $la and $ra gave $c")) *> M.pure(c)
             }
     }  
   }
 
   def handleDiv[F[_], A: Numeric](l: Exp[A], r: Exp[A])
-      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
+      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: Raise[F, Error], M: Monad[F]): F[A] = {
     eval(l).flatMap {
       la =>
         eval(r).flatMap {
           ra =>
             val c = la / ra
-            L.tell(List(s"Div $la by $ra gave $c")) *> E.pure(c)
+            L.tell(List(s"Div $la by $ra gave $c")) *> M.pure(c)
         }
     }
   }
 
   def handleSub[F[_], A: Numeric](l: Exp[A], r: Exp[A])
-      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = {
+      (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: Raise[F, Error], M: Monad[F]): F[A] = {
     eval(l).flatMap {
         la =>
           eval(r).flatMap {
             ra =>
               val c = la - ra
-              L.tell(List(s"Subtract $ra from $la gave $c")) *> E.pure(c)
+              L.tell(List(s"Subtract $ra from $la gave $c")) *> M.pure(c)
           }
       }
   }
 
   def handleVar[F[_],A: Numeric](id: String)
-    (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = 
+    (implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: Raise[F, Error], M: Monad[F]): F[A] = 
     R.ask.flatMap {
       env => 
         env.get(id) match {
-          case Some(value) => L.tell(List(s"Var $id was $value")) *> E.pure(value)
-          case None => E.raiseError(SymbolNotFound)
+          case Some(value) => L.tell(List(s"Var $id was $value")) *> M.pure(value)
+          case None => E.raise(SymbolNotFound)
         }
     }
 
@@ -158,9 +157,9 @@ object EvalCatsMTL extends App {
               ),
               Var("z"))
 
-  def eval[F[_],A: Numeric](exp: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: MonadError[F, Error]): F[A] = 
+  def eval[F[_],A: Numeric](exp: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: Raise[F, Error], M: Monad[F]): F[A] = 
       exp match {
-        case Val(value) => E.pure(value)
+        case Val(value) => M.pure(value)
         case Var(id) => handleVar(id)
         case Add(left,right) => handleAdd(left,right)
         case Sub(left,right) => handleSub(left,right)
@@ -170,13 +169,15 @@ object EvalCatsMTL extends App {
 
   // "materialize" the program by running it with an expression and defining the types to use
   val program =
-    eval[WriterT[EitherT[ReaderT[Id, Env[Int], ?], Error, ?],List[String],?],Int](exp1)
+    eval[EitherT[WriterT[ReaderT[Id, Env[Int], ?],List[String],?],Error,?],Int](exp1)
 
-  program.run.value.run(env1) match {
+  val runResult = program.value.run(env1)    
+
+  runResult._2 match {
     case Left(err) => println(s"Failed with error $err")
-    case Right((log, result)) => {
+    case Right(result) => {
       println(s"Result: $result")
-      log.foreach {
+      runResult._1.foreach {
         entry =>
           println(s"\t$entry")
       }
