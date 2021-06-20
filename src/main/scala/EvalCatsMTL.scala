@@ -170,7 +170,7 @@ object EvalCatsMTL extends App {
 
   // "materialize" the program by running it with an expression and defining the types to use
   val program =
-    eval[WriterT[EitherT[ReaderT[Id, Env[Int], ?], EvalCatsMTL.Error, ?],List[String],?],Int](exp1)
+    eval[WriterT[EitherT[ReaderT[Id, Env[Int], ?], Error, ?],List[String],?],Int](exp1)
 
   program.run.value.run(env1) match {
     case Left(err) => println(s"Failed with error $err")
