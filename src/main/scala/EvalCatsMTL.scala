@@ -1,18 +1,12 @@
 import scala.math.{Numeric => _}
 
 import cats.implicits._
-import cats.mtl.implicits._
 import cats.data._
 import cats.Id
-import cats.kernel.Monoid
-import cats.{Applicative,Monad}
+import cats.Monad
 import cats.mtl.Ask
 import cats.mtl.Raise
 import cats.mtl.Tell
-import cats.mtl.Stateful
-import cats.data
-import java.lang
-import scala.collection.immutable
 
 /**
  * Convert Cats version of Eval to utilize MTL
@@ -50,6 +44,7 @@ object EvalCatsMTL extends App {
     def sub(a: T, b: T): T
     def div(a: T, b: T): T
     def mul(a: T, b: T): T
+    def isZero(a: T): Boolean
   }
 
   implicit val numericInt: Numeric[Int] = new Numeric[Int] {
@@ -57,6 +52,7 @@ object EvalCatsMTL extends App {
     def sub(a: Int, b: Int): Int = a - b
     def div(a: Int, b: Int): Int = a / b
     def mul(a: Int, b: Int): Int = a * b
+    def isZero(a: Int): Boolean = a == 0
   }
 
   implicit val numericLong: Numeric[Long] = new Numeric[Long] {
@@ -64,6 +60,7 @@ object EvalCatsMTL extends App {
     def mul(a: Long, b: Long): Long = a * b
     def sub(a: Long, b: Long): Long = a - b
     def div(a: Long, b: Long): Long = a / b
+    def isZero(a: Long): Boolean = a == 0L
   }
 
   // Error type (for errors that occur evaluating expressions)
@@ -115,8 +112,12 @@ object EvalCatsMTL extends App {
       la =>
         eval(r).flatMap {
           ra =>
-            val c = la / ra
-            L.tell(List(s"Div $la by $ra gave $c")) *> M.pure(c)
+            if(implicitly[Numeric[A]].isZero(ra)) {
+              E.raise(DivisionByZero)
+            } else {
+              val c = la / ra
+              L.tell(List(s"Div $la by $ra gave $c")) *> M.pure(c)
+            }
         }
     }
   }
@@ -143,20 +144,6 @@ object EvalCatsMTL extends App {
         }
     }
 
-  val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
-
-  val exp1 = Mul(
-              Add(
-                Sub(
-                  Div(
-                    Val(20),
-                    Var("y")
-                  ),
-                  Var("x")),
-                Var("y")
-              ),
-              Var("z"))
-
   def eval[F[_],A: Numeric](exp: Exp[A])(implicit L: Tell[F,List[String]], R: Ask[F, Env[A]], E: Raise[F, Error], M: Monad[F]): F[A] = 
       exp match {
         case Val(value) => M.pure(value)
@@ -167,20 +154,34 @@ object EvalCatsMTL extends App {
         case Mul(left,right) => handleMul(left,right)
       }
 
+  val env1: Env[Int] = Map("x" -> 1, "y" -> 10, "z" -> 100)
+
+  val exp1 = Mul(
+    Add(
+      Sub(
+        Div(
+          Val(20),
+          Var("y")
+        ),
+        Var("x")),
+      Var("y")
+    ),
+    Var("z"))
+
   // "materialize" the program by running it with an expression and defining the types to use
   val program =
-    eval[EitherT[WriterT[ReaderT[Id, Env[Int], ?],List[String],?],Error,?],Int](exp1)
+    eval[EitherT[WriterT[ReaderT[Id, Env[Int], *],List[String],*],Error,*],Int](exp1)
 
   val runResult = program.value.run(env1)    
 
   runResult._2 match {
     case Left(err) => println(s"Failed with error $err")
-    case Right(result) => {
+    case Right(result) =>
       println(s"Result: $result")
       runResult._1.foreach {
         entry =>
           println(s"\t$entry")
       }
-    }
   }
+
 }
