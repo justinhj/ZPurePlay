@@ -170,7 +170,7 @@ object EvalCatsMTL extends App {
 
   // "materialize" the program by running it with an expression and defining the types to use
   val program =
-    eval[EitherT[WriterT[ReaderT[Id, Env[Int], *],List[String],*],Error,*],Int](exp1)
+    eval[EitherT[WriterT[Reader[Env[Int], *],List[String],*],Error,*],Int](exp1)
 
   val runResult = program.value.run(env1)    
 
@@ -183,5 +183,4 @@ object EvalCatsMTL extends App {
           println(s"\t$entry")
       }
   }
-
 }
