@@ -13,8 +13,8 @@ object TempMTL extends App {
     }
   }
 
-  println(raiseExample[Either[String,*]]("irreversible"))
-  println(raiseExample[Either[String,*]]("Hello world"))
+  println(raiseExample[[A1] =>> Either[String,A1]]("irreversible"))
+  println(raiseExample[[A1] =>> Either[String,A1]]("Hello world"))
 
   // As above but add logging
   def raiseWithTellExample[F[_]](s: String)
@@ -30,15 +30,15 @@ object TempMTL extends App {
   // Let's add Tell (WriterT)
 
   // Wrapping Either with WriterT does not work, suggests EitherT, WriterT, Writer instead
-  //println(raiseWithTellExample[WriterT[Either[String,*],List[String],*]]("Hello world"))
+  //println(raiseWithTellExample[WriterT[Either[String,_],List[String],_]]("Hello world"))
 
   // Does work if you put EitherT on the outside and use Id as the inner monad
-  println(raiseWithTellExample[EitherT[WriterT[Id,List[String],*],String,*]]("Hello world"))
-  println(raiseWithTellExample[EitherT[WriterT[Id,List[String],*],String,*]]("irreversible"))
+  println(raiseWithTellExample[[A1] =>> EitherT[[A2] =>> WriterT[Id,List[String],A2],String,A1]]("Hello world"))
+  println(raiseWithTellExample[[A1] =>> EitherT[[A2] =>> WriterT[Id,List[String],A2],String,A1]]("irreversible"))
 
   // How about same thing with WriterT on the outside?
   // Nope. Recommends EitherT[WriterT[EitherT[[A]]]] which wouldn't work since A has the wrong shape
-  //println(raiseWithTellExample[WriterT[EitherT[Id,String,*],List[String],*]]("Hello world"))
+  //println(raiseWithTellExample[WriterT[EitherT[Id,String,_],List[String],_]]("Hello world"))
 
   // Let's add Ask (ReaderT) to give a list of irreversible strings
   def raiseWithTellAndAskExample[F[_]](s: String)
@@ -54,7 +54,7 @@ object TempMTL extends App {
       }
   }
 
-  println(raiseWithTellAndAskExample[EitherT[ReaderT[WriterT[Id,List[String],*],List[String],*],String,*]]("Hello world")
+  println(raiseWithTellAndAskExample[EitherT[ReaderT[WriterT[Id,List[String],_],List[String],_],String,_]]("Hello world")
     .value.run(List("irreversible","Hello world")))
 
 

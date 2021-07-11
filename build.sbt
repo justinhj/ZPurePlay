@@ -3,7 +3,7 @@ ThisBuild / version          := "0.1.0-SNAPSHOT"
 ThisBuild / organization     := "org.justinhj"
 ThisBuild / organizationName := "example"
 
-addCompilerPlugin("org.typelevel" % "kind-projector" % "0.11.3" cross CrossVersion.full)
+/* addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.0" cross CrossVersion.full) */
 
 scalacOptions ++= Seq(
 //	"-Vimplicit-conversions"
@@ -20,7 +20,7 @@ lazy val root = (project in file("."))
       "dev.zio" %% "zio-test-sbt" % zioVersion % "test",
       "dev.zio" %% "zio-test-magnolia" % zioVersion % "test",
       "dev.zio" %% "zio-prelude" % "1.0.0-RC5",
-      "org.scalaz" %% "scalaz-core" % "7.3.3",
+      /* "org.scalaz" %% "scalaz-core" % "7.3.3", */
       "org.typelevel" %% "cats-core" % "2.6.1",
       "org.typelevel" %% "cats-mtl" % "1.2.1",
       "com.lihaoyi" %% "utest" % "0.7.10" % "test"
